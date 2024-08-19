@@ -3,6 +3,7 @@ from pathlib import Path
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
+from importlib import resources
 
 nltk.download("punkt", quiet=True)
 nltk.download("stopwords", quiet=True)
@@ -10,9 +11,11 @@ nltk.download("stopwords", quiet=True)
 
 def _load_concreteness_ratings() -> dict[str, float]:
     concreteness_dict = {}
-    csv_path = Path(__file__).parent.parent / "resources" / "concreteness_ratings.csv"
 
-    with open(csv_path, "r", newline="") as csvfile:
+    # Use importlib.resources to access the CSV file
+    with resources.open_text(
+        "wordtangible.resources", "concreteness_ratings.csv"
+    ) as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             concreteness_dict[row["Word"]] = float(row["Concreteness"])
