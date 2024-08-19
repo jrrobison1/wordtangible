@@ -1,15 +1,26 @@
 [tool.poetry]
 name = "wordtangible"
-version = "0.1.0"
-description = ""
-authors = ["Jason Robison <jrrobison1@hoodsen.me>"]
+version = "0.1.1"
+description = "Python library for word concreteness and imageability analysis."
+authors = ["Jason Robison <jrrobison@protonmail.com>"]
 readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/jrrobison1/wordtangible"
+repository = "https://github.com/jrrobison1/wordtangible"
+keywords = ["nlp", "linguistics", "concreteness", "imageability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+]
+packages = [{ include = "wordtangible" }]
 include = ["wordtangible/resources/*.csv"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 nltk = "^3.9.1"
-
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"
