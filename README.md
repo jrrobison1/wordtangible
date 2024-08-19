@@ -31,7 +31,7 @@ print(word_concreteness("apple"))  # Output: 5.0 (highly concrete)
 
 # Calculate average concreteness of a text
 text = "The abstract concept of love is as tangible as the apple in your hand."
-print(avg_text_concreteness(text))  # Output: ~3.5 (mix of concrete and abstract)
+print(avg_text_concreteness(text))  # Output: ~2.9 (mix of concrete and abstract)
 
 # Get the ratio of concrete to abstract words
 print(concrete_abstract_ratio(text))  # Output: ~1.0 (balanced concrete and abstract words)
