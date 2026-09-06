@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "wordtangible"
-version = "0.1.1"
+version = "0.2.0"
 description = "Python library for word concreteness and imageability analysis."
 authors = ["Jason Robison <jrrobison@protonmail.com>"]
 readme = "README.md"
@@ -14,6 +14,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 packages = [{ include = "wordtangible" }]
 include = ["wordtangible/resources/*.csv"]

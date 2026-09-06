@@ -1,21 +1,41 @@
 import csv
-from pathlib import Path
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from importlib import resources
 
-nltk.download("punkt", quiet=True)
-nltk.download("stopwords", quiet=True)
+_nltk_ready = False
+
+
+def _ensure_nltk_data() -> None:
+    """Make sure the NLTK resources tokenization needs are available.
+
+    Runs lazily on first use (not at import time, which breaks offline
+    environments) and only downloads what is actually missing. Note that
+    NLTK >= 3.8.2 tokenizes with the `punkt_tab` resource — downloading
+    only `punkt` leaves word_tokenize raising LookupError on fresh
+    installs.
+    """
+    global _nltk_ready
+    if _nltk_ready:
+        return
+    for resource, path in (
+        ("punkt_tab", "tokenizers/punkt_tab"),
+        ("punkt", "tokenizers/punkt"),
+        ("stopwords", "corpora/stopwords"),
+    ):
+        try:
+            nltk.data.find(path)
+        except LookupError:
+            nltk.download(resource, quiet=True)
+    _nltk_ready = True
 
 
 def _load_concreteness_ratings() -> dict[str, float]:
     concreteness_dict = {}
 
-    # Use importlib.resources to access the CSV file
-    with resources.open_text(
-        "wordtangible.resources", "concreteness_ratings.csv"
-    ) as csvfile:
+    ref = resources.files("wordtangible.resources") / "concreteness_ratings.csv"
+    with ref.open("r", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             concreteness_dict[row["Word"]] = float(row["Concreteness"])
@@ -147,6 +167,7 @@ def concrete_abstract_ratio(
 
 
 def _get_tokens(text: str, include_stopwords: bool = False):
+    _ensure_nltk_data()
     tokens = [token for token in word_tokenize(text.lower()) if token.isalpha()]
 
     if not include_stopwords:
