@@ -119,6 +119,7 @@ def concrete_abstract_ratio(
     include_stopwords: bool = False,
     very_concrete_threshold: float = 4.0,
     very_abstract_threshold: float = 2.0,
+    smoothing: float = 0.0,
 ) -> float:
     """
     Calculate the ratio of very concrete words to very abstract words in a given text.
@@ -135,11 +136,23 @@ def concrete_abstract_ratio(
             for a word to be considered very concrete. Defaults to 4.0.
         very_abstract_threshold (float, optional): The concreteness rating threshold
             for a word to be considered very abstract. Defaults to 2.0.
+        smoothing (float, optional): Additive (add-k) smoothing constant applied to
+            both counts: (concrete + k) / (abstract + k). The default of 0.0 keeps
+            the exact historical behavior. A small positive value (k=1 is typical)
+            keeps the ratio finite when a text has no very-abstract words and damps
+            small-sample jumpiness, which makes the ratio safe to average, plot,
+            or correlate downstream. Defaults to 0.0.
 
     Returns:
         float: The ratio of very concrete words to very abstract words.
+            With smoothing == 0 (the default):
             Returns float('inf') if there are concrete words but no abstract words.
             Returns 0.0 if there are no concrete words or if the text is empty.
+            With smoothing > 0 the result is always finite; a text with no rated
+            words in either category returns 1.0 (neutral).
+
+    Raises:
+        ValueError: If smoothing is negative.
 
     Note:
         - Concreteness ratings range from 1 (highly abstract) to 5 (highly concrete).
@@ -147,6 +160,8 @@ def concrete_abstract_ratio(
           in either category.
         - Words without known concreteness ratings are ignored.
     """
+    if smoothing < 0:
+        raise ValueError("smoothing must be >= 0")
     tokens = _get_tokens(text, include_stopwords)
 
     concrete_words = 0
@@ -160,10 +175,41 @@ def concrete_abstract_ratio(
             elif concreteness <= very_abstract_threshold:
                 abstract_words += 1
 
+    if smoothing > 0:
+        return (concrete_words + smoothing) / (abstract_words + smoothing)
+
     if abstract_words == 0:
         return float("inf") if concrete_words > 0 else 0.0
 
     return concrete_words / abstract_words
+
+
+def concreteness_coverage(text: str, include_stopwords: bool = False) -> float:
+    """
+    Calculate the fraction of tokens that have a known concreteness rating.
+
+    avg_text_concreteness averages over only the words found in the ratings
+    lexicon; this function reports how much of the text that actually was.
+    A mean computed at 0.85 coverage rests on most of the text, while the
+    same mean at 0.12 coverage (dialect, jargon, names, other languages)
+    rests on a handful of incidental matches — reporting or thresholding
+    on coverage tells you how much to trust the mean.
+
+    Args:
+        text (str): The input text to analyze.
+        include_stopwords (bool, optional): Whether to include stopwords in the
+            token count, matching the tokenization used by the other functions.
+            Defaults to False.
+
+    Returns:
+        float: rated_tokens / total_tokens, in [0.0, 1.0]. Returns 0.0 for an
+        empty text (or one with no alphabetic tokens).
+    """
+    tokens = _get_tokens(text, include_stopwords)
+    if not tokens:
+        return 0.0
+    rated = sum(1 for token in tokens if word_concreteness(token) is not None)
+    return rated / len(tokens)
 
 
 def _get_tokens(text: str, include_stopwords: bool = False):
