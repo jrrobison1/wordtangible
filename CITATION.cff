@@ -1,0 +1,81 @@
+cff-version: 1.2.0
+message: >-
+  If you use WordTangible in your research, please cite it as below, and
+  please also cite the underlying rating datasets (see the README
+  references): Brysbaert et al. (2014), Scott et al. (2019), and
+  Coltheart (1981) / Wilson (1988).
+title: "WordTangible: word concreteness and imageability analysis"
+type: software
+authors:
+  - family-names: Robison
+    given-names: Jason
+version: 0.2.0
+license: MIT
+repository-code: "https://github.com/jrrobison1/wordtangible"
+url: "https://pypi.org/project/wordtangible/"
+keywords:
+  - concreteness
+  - imageability
+  - psycholinguistics
+  - nlp
+references:
+  - type: article
+    title: Concreteness ratings for 40 thousand generally known English word lemmas
+    authors:
+      - family-names: Brysbaert
+        given-names: Marc
+      - family-names: Warriner
+        given-names: Amy Beth
+      - family-names: Kuperman
+        given-names: Victor
+    journal: Behavior Research Methods
+    volume: 46
+    issue: 3
+    start: 904
+    end: 911
+    year: 2014
+    doi: 10.3758/s13428-013-0403-5
+  - type: article
+    title: "The Glasgow Norms: Ratings of 5,500 words on nine scales"
+    authors:
+      - family-names: Scott
+        given-names: Graham G.
+      - family-names: Keitel
+        given-names: Anne
+      - family-names: Becirspahic
+        given-names: Marc
+      - family-names: Yao
+        given-names: Bo
+      - family-names: Sereno
+        given-names: Sara C.
+    journal: Behavior Research Methods
+    volume: 51
+    issue: 3
+    start: 1258
+    end: 1270
+    year: 2019
+    doi: 10.3758/s13428-018-1099-3
+  - type: article
+    title: The MRC psycholinguistic database
+    authors:
+      - family-names: Coltheart
+        given-names: Max
+    journal: The Quarterly Journal of Experimental Psychology Section A
+    volume: 33
+    issue: 4
+    start: 497
+    end: 505
+    year: 1981
+    doi: 10.1080/14640748108400805
+  - type: article
+    title: "MRC Psycholinguistic Database: Machine-usable dictionary, version 2.00"
+    authors:
+      - family-names: Wilson
+        given-names: Michael
+    journal: "Behavior Research Methods, Instruments, & Computers"
+    volume: 20
+    issue: 1
+    start: 6
+    end: 10
+    year: 1988
+    doi: 10.3758/BF03202594

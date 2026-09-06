@@ -25,3 +25,11 @@
   `files()` API (removes the deprecation warning on Python 3.11+).
 - Declared support for Python 3.11-3.13 in classifiers; added a CI test
   matrix (3.10-3.13).
+- **Documentation: data sources & licensing.** The README now
+  distinguishes the MIT-licensed code from the bundled ratings data and
+  states each source's terms (Glasgow Norms: CC BY 4.0; Brysbaert norms:
+  author-distributed, no formal license; MRC: "for research purposes" —
+  commercial users should verify). Citations upgraded to full APA with
+  DOIs, and Wilson (1988) added for the machine-usable MRC dictionary.
+- Added `CITATION.cff` so studies can cite WordTangible (and its
+  underlying datasets) directly from GitHub's cite button.

@@ -12,6 +12,12 @@ it now charts concreteness across rolling windows of novels):
   overload (or a `tokenizer=None` hook) would let callers who already
   have tokens skip NLTK entirely — also removes the NLTK dependency for
   that path.
+- **Per-source provenance in the ratings build**: add a source column (or
+  regenerate with per-source values kept) so an MRC-free variant of the
+  CSV can be produced for commercial-safe use — the MRC database's terms
+  say "for research purposes", while Glasgow is CC BY 4.0 and Brysbaert
+  is author-distributed without a formal license. Brysbaert alone covers
+  ~40k lemmas, so an MRC-free build loses little coverage.
 - **imageable.py**: currently an empty stub — either implement
   imageability ratings (MRC has them) or drop the module until ready.
 - **Publish 0.2.0 to PyPI** once reviewed.
