@@ -14,14 +14,15 @@ The default rating is a quality-ordered fallback on a 1-5 scale (5 = most
 concrete): Brysbaert's raw value when a word is in Brysbaert (the largest
 single-word source, natively 1-5), otherwise Muraki (multiword
 expressions, same scale and lab lineage), otherwise Glasgow, otherwise
-MRC, the latter two linearly rescaled to 1-5. The sources are deliberately *not*
-averaged — their normalized distributions have systematically different
-means, so a linear-rescale average would skew multi-source words rather
-than reduce noise. This way every value is a real published rating from a
-single identifiable study (and ~99% of words return Brysbaert's exact
-published value). The raw per-source ratings, an MRC-free variant, and a
-mean of the available sources are all accessible via the `source`
-parameter (see below).
+MRC, the latter two linearly rescaled to 1-5. 
+
+The sources are deliberately *not* averaged — their normalized distributions 
+have systematically different means, so a linear-rescale average would 
+skew multi-source words rather than reduce noise. This way every value is 
+a real published rating from a single identifiable study (and ~99% of words 
+return Brysbaert's exact published value). The raw per-source ratings, an 
+MRC-free variant, and a mean of the available sources are all accessible via 
+the `source` parameter (see below).
 
 ## Features
 
@@ -80,6 +81,8 @@ print(concrete_abstract_ratio(text, smoothing=1))
 # (jargon, dialect, names) is noise
 from wordtangible import concreteness_coverage
 print(concreteness_coverage(text))
+
+
 ```
 
 ### Choosing a ratings source
@@ -96,6 +99,15 @@ word_concreteness("apple", "mean")       # 4.78  — mean of available sources, 
 word_concreteness("piece of cake")       # 2.8   — Muraki multiword expressions, idioms included
 
 avg_text_concreteness(text, source="open")
+
+# Get the concreteness score and average concreteness for text using exactly Brysbaert and nothing else:
+word_concreteness("apple", source="brysbaert", lemma_fallback=False)
+avg_text_concreteness(
+    text,
+    include_stopwords=True,
+    source="brysbaert",
+    lemma_fallback=False,
+)
 ```
 
 - `default` — Brysbaert, else Muraki, else Glasgow, else MRC (the
