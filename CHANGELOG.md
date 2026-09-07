@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.6.0
+
+- **New data source: Muraki et al. (2023) multiword expressions.**
+  Concreteness ratings for 62,889 expressions — noun compounds through
+  long idioms — from the same lab lineage, scale (1-5), and method as
+  the Brysbaert norms (though with ~10 raters per expression vs ~30).
+  A new `Muraki` CSV column and `source="muraki"` raw option; the
+  default and `open` fallbacks become Brysbaert → Muraki → Glasgow
+  (→ MRC for default), and `mean` includes it. Where both rate the same
+  expression (2,854 of our 2,896 Brysbaert compounds, r = 0.86),
+  Brysbaert's value wins — continuity, and 3x the raters.
+- **Expression matching generalizes from bigrams to n-grams.** Runs of
+  adjacent tokens matching a rated expression are scored as one unit,
+  longest match first ("ice cream cone" beats "ice cream"; "a piece of
+  cake" beats "piece of cake"). The 0.4.0 rules carry over: matching
+  happens before punctuation/stopword filtering, punctuation blocks a
+  match, and a source that doesn't rate the expression falls back to
+  word-by-word.
+- **All-stopword expressions respect the stopword filter.** Muraki rates
+  function-word combinations ("of a", "that is", "the same") that, if
+  matched as units, would survive the default stopword removal even
+  though word-by-word scoring would have dropped every constituent —
+  measured on six reference texts, this injected thousands of abstract
+  junk units per book and dragged every average down. The stopword rule
+  now applies uniformly: a unit is dropped when all of its words are
+  stopwords, so "of a" goes while "act on", "at last", and "piece of
+  cake" stay; `include_stopwords=True` keeps everything, as before.
+- **New: `match_expressions` parameter on the text functions.** Idioms
+  are rated for their figurative meaning ("piece of cake" = 2.8), which
+  is wrong when the text means literal cake; exact-match-only limits
+  this (inflected literal uses don't trigger), but
+  `match_expressions=False` turns expression matching off entirely for
+  strict word-by-word scoring.
+- Muraki's ~1,100 hyphenated single-word entries ("able-bodied") are
+  included and reachable via direct `word_concreteness` lookup, though
+  not through text tokenization (hyphenated tokens fail the alphabetic
+  filter, as before). Its ~4,700 entries with digits or punctuation
+  (".22 caliber", "3D printer") are likewise lookup-only. 3,543
+  unrated (NA) rows in the source file are dropped.
+- The ratings CSV grows to 100,445 rows (~2.7MB); import time rises from
+  ~0.23s to ~0.38s. No existing word's default value changed.
+
 ## 0.5.0
 
 - **Lemma fallback, on by default.** A word with no rating of its own is

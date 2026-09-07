@@ -50,20 +50,23 @@ def _ensure_wordnet() -> None:
     _wordnet_ready = True
 
 
-def _load_concreteness_ratings() -> (
-    tuple[dict[str, dict[str, float]], dict[tuple[str, str], str]]
-):
+def _load_concreteness_ratings() -> tuple[
+    dict[str, dict[str, float]],
+    dict[str, list[tuple[tuple[str, ...], str]]],
+]:
     ratings: dict[str, dict[str, float]] = {
         "default": {},
         "brysbaert": {},
+        "muraki": {},
         "glasgow": {},
         "mrc": {},
     }
-    # (token, token) -> the rated entry's key, e.g. ("baseball", "bat") ->
-    # "baseball bat" and ("dutch", "oven") -> "Dutch oven". The Brysbaert
-    # norms deliberately rated 2,896 two-word compounds; tokenization maps
-    # adjacent token pairs back onto them (see _get_tokens).
-    bigrams: dict[tuple[str, str], str] = {}
+    # first token -> [(token tuple, rated entry's key), ...] longest first,
+    # e.g. "piece" -> [(("piece", "of", "cake"), "piece of cake"), ...].
+    # Brysbaert deliberately rated 2,896 two-word compounds and Muraki et
+    # al. 62,889 multiword expressions; tokenization maps adjacent token
+    # runs back onto them (see _get_tokens).
+    expressions: dict[str, list[tuple[tuple[str, ...], str]]] = {}
 
     ref = resources.files("wordtangible.resources") / "concreteness_ratings.csv"
     with ref.open("r", encoding="utf-8") as csvfile:
@@ -74,21 +77,26 @@ def _load_concreteness_ratings() -> (
                 ratings["default"][word] = float(row["Concreteness"])
             if row["Brysbaert"]:
                 ratings["brysbaert"][word] = float(row["Brysbaert"])
+            if row["Muraki"]:
+                ratings["muraki"][word] = float(row["Muraki"])
             if row["Glasgow"]:
                 ratings["glasgow"][word] = float(row["Glasgow"])
             if row["MRC"]:
                 ratings["mrc"][word] = float(row["MRC"])
-            parts = word.lower().split(" ")
-            if len(parts) == 2:
-                bigrams[(parts[0], parts[1])] = word
+            parts = tuple(word.lower().split(" "))
+            if len(parts) >= 2:
+                expressions.setdefault(parts[0], []).append((parts, word))
 
-    return ratings, bigrams
+    for candidates in expressions.values():
+        candidates.sort(key=lambda entry: len(entry[0]), reverse=True)
+
+    return ratings, expressions
 
 
-_RATINGS, _BIGRAMS = _load_concreteness_ratings()
+_RATINGS, _EXPRESSIONS = _load_concreteness_ratings()
 CONCRETENESS_RATINGS = _RATINGS["default"]
 
-SOURCES = ("default", "brysbaert", "glasgow", "mrc", "open", "mean")
+SOURCES = ("default", "brysbaert", "muraki", "glasgow", "mrc", "open", "mean")
 
 
 def _normalize_glasgow(conc: float) -> float:
@@ -134,8 +142,9 @@ def word_concreteness(
     """
     Get the concreteness rating for a given word.
 
-    Ratings come from three published datasets: the Brysbaert et al. (2014)
-    concreteness norms, the Glasgow Norms (Scott et al., 2019), and the MRC
+    Ratings come from four published datasets: the Brysbaert et al. (2014)
+    concreteness norms, the Muraki et al. (2023) multiword-expression
+    norms, the Glasgow Norms (Scott et al., 2019), and the MRC
     Psycholinguistic Database.
 
     Args:
@@ -144,19 +153,25 @@ def word_concreteness(
 
             - ``"default"``: quality-ordered fallback on a 1-5 scale —
               Brysbaert's raw value if the word is in Brysbaert (the
-              largest, most recent source, natively 1-5), else Glasgow,
-              else MRC, each linearly rescaled to 1-5. Every value is a
-              real published rating from a single identifiable study;
-              the sources are not averaged, because their normalized
-              distributions have systematically different means and
-              averaging would skew multi-source words.
+              largest, most recent source, natively 1-5), else Muraki
+              (multiword expressions, same scale and lab lineage), else
+              Glasgow, else MRC, the latter two linearly rescaled to
+              1-5. Every value is a real published rating from a single
+              identifiable study; the sources are not averaged, because
+              their normalized distributions have systematically
+              different means and averaging would skew multi-source
+              words.
             - ``"brysbaert"``: raw Brysbaert rating, 1-5 scale.
+            - ``"muraki"``: raw Muraki et al. multiword-expression
+              rating, 1-5 scale (~10 raters per expression vs
+              Brysbaert's ~30).
             - ``"glasgow"``: raw Glasgow CNC rating, 1-7 scale.
             - ``"mrc"``: raw MRC CNC rating, 100-700 scale.
-            - ``"open"``: like ``"default"`` but never uses MRC (Brysbaert,
-              else Glasgow rescaled to 1-5). The MRC database's terms are
-              "for research purposes"; Brysbaert and Glasgow carry no such
-              restriction, so this source suits commercial use.
+            - ``"open"``: like ``"default"`` but never uses MRC
+              (Brysbaert, else Muraki, else Glasgow rescaled to 1-5).
+              The MRC database's terms are "for research purposes"; the
+              other sources carry no such restriction, so this source
+              suits commercial use.
             - ``"mean"``: mean of all available ratings rescaled to 1-5.
               Note the scale-mixing caveat above — values are not
               comparable to any single set of published norms.
@@ -184,25 +199,30 @@ def word_concreteness(
         with higher likewise meaning more concrete.
     """
     _validate_source(source)
-    if source in ("default", "brysbaert", "glasgow", "mrc"):
+    if source in ("default", "brysbaert", "muraki", "glasgow", "mrc"):
         rating = _RATINGS[source].get(word, None)
     elif source == "open":
         brysbaert = _RATINGS["brysbaert"].get(word)
+        muraki = _RATINGS["muraki"].get(word)
         glasgow = _RATINGS["glasgow"].get(word)
         if brysbaert is not None:
             rating = brysbaert
+        elif muraki is not None:
+            rating = muraki
         else:
             rating = (
                 None if glasgow is None else round(_normalize_glasgow(glasgow), 2)
             )
     else:  # source == "mean"
         brysbaert = _RATINGS["brysbaert"].get(word)
+        muraki = _RATINGS["muraki"].get(word)
         glasgow = _RATINGS["glasgow"].get(word)
         mrc = _RATINGS["mrc"].get(word)
         values = [
             value
             for value in (
                 brysbaert,
+                muraki,
                 None if glasgow is None else _normalize_glasgow(glasgow),
                 None if mrc is None else _normalize_mrc(mrc),
             )
@@ -221,6 +241,7 @@ def avg_text_concreteness(
     only_rated_words: bool = True,
     source: str = "default",
     lemma_fallback: bool = True,
+    match_expressions: bool = True,
 ) -> float:
     """
     Calculate the average concreteness rating for a given text.
@@ -241,6 +262,11 @@ def avg_text_concreteness(
         lemma_fallback (bool, optional): Score unrated words by their
             WordNet lemma when one is rated ("whales" scores as "whale") —
             see word_concreteness. Defaults to True.
+        match_expressions (bool, optional): Match rated multiword
+            expressions ("baseball bat", "piece of cake") as single
+            units, longest first. Set False to score every word singly —
+            e.g. to avoid an idiom's rating firing on a literal use
+            ("he ate a piece of cake"). Defaults to True.
 
     Returns:
         float: The average concreteness rating of the text. Returns 0.0 if no words
@@ -260,7 +286,7 @@ def avg_text_concreteness(
           but only rated words contribute to the numerator.
     """
     _validate_source(source)
-    tokens = _get_tokens(text, include_stopwords, source)
+    tokens = _get_tokens(text, include_stopwords, source, match_expressions)
 
     if len(tokens) == 0:
         return 0.0
@@ -284,6 +310,7 @@ def concrete_abstract_ratio(
     smoothing: float = 0.0,
     source: str = "default",
     lemma_fallback: bool = True,
+    match_expressions: bool = True,
 ) -> float:
     """
     Calculate the ratio of very concrete words to very abstract words in a given text.
@@ -313,6 +340,11 @@ def concrete_abstract_ratio(
         lemma_fallback (bool, optional): Score unrated words by their
             WordNet lemma when one is rated ("whales" scores as "whale") —
             see word_concreteness. Defaults to True.
+        match_expressions (bool, optional): Match rated multiword
+            expressions ("baseball bat", "piece of cake") as single
+            units, longest first. Set False to score every word singly —
+            e.g. to avoid an idiom's rating firing on a literal use
+            ("he ate a piece of cake"). Defaults to True.
 
     Returns:
         float: The ratio of very concrete words to very abstract words.
@@ -336,7 +368,7 @@ def concrete_abstract_ratio(
     if smoothing < 0:
         raise ValueError("smoothing must be >= 0")
     _validate_source(source)
-    tokens = _get_tokens(text, include_stopwords, source)
+    tokens = _get_tokens(text, include_stopwords, source, match_expressions)
 
     concrete_words = 0
     abstract_words = 0
@@ -363,6 +395,7 @@ def concreteness_coverage(
     include_stopwords: bool = False,
     source: str = "default",
     lemma_fallback: bool = True,
+    match_expressions: bool = True,
 ) -> float:
     """
     Calculate the fraction of tokens that have a known concreteness rating.
@@ -384,6 +417,11 @@ def concreteness_coverage(
         lemma_fallback (bool, optional): Score unrated words by their
             WordNet lemma when one is rated ("whales" scores as "whale") —
             see word_concreteness. Defaults to True.
+        match_expressions (bool, optional): Match rated multiword
+            expressions ("baseball bat", "piece of cake") as single
+            units, longest first. Set False to score every word singly —
+            e.g. to avoid an idiom's rating firing on a literal use
+            ("he ate a piece of cake"). Defaults to True.
             A lemma-rescued word counts as rated, so coverage reflects
             the ratings the other functions actually use.
 
@@ -396,7 +434,7 @@ def concreteness_coverage(
         ValueError: If source is not one of the recognized names.
     """
     _validate_source(source)
-    tokens = _get_tokens(text, include_stopwords, source)
+    tokens = _get_tokens(text, include_stopwords, source, match_expressions)
     if not tokens:
         return 0.0
     rated = sum(
@@ -407,19 +445,30 @@ def concreteness_coverage(
     return rated / len(tokens)
 
 
-def _get_tokens(text: str, include_stopwords: bool = False, source: str = "default"):
-    """Tokenize text into rateable units: single words and rated compounds.
+def _get_tokens(
+    text: str,
+    include_stopwords: bool = False,
+    source: str = "default",
+    match_expressions: bool = True,
+):
+    """Tokenize text into rateable units: single words and rated expressions.
 
-    Adjacent token pairs that form a rated two-word compound ("baseball
-    bat", "act on") are emitted as one unit, greedily left to right, and
-    their tokens are consumed so they aren't also counted singly. The
-    bigram pass runs on the raw token stream, before punctuation and
-    stopwords are dropped: punctuation between two words blocks a match
-    ("...the baseball, bat in hand..."), and compounds containing a
-    stopword ("act on") survive stopword removal. A compound only matches
-    if the chosen source rates it — otherwise the words fall back to
-    being scored singly (the compounds all come from Brysbaert, so raw
-    "glasgow"/"mrc" lookups keep plain word-by-word behavior).
+    Runs of adjacent tokens that form a rated multiword expression
+    ("baseball bat", "piece of cake") are emitted as one unit — longest
+    match first, greedily left to right — and their tokens are consumed
+    so they aren't also counted singly. The expression pass runs on the
+    raw token stream, before punctuation and stopwords are dropped:
+    punctuation inside the run blocks a match ("...the baseball, bat in
+    hand..."), and expressions containing a stopword ("act on", "piece
+    of cake") survive stopword removal — though an expression made
+    entirely of stopwords ("of a", "that is") is dropped with them
+    unless include_stopwords is True, since word-by-word scoring would
+    have removed it completely. An expression only matches if
+    the chosen source rates it — otherwise the words fall back to being
+    scored singly (the expressions all come from Brysbaert and Muraki,
+    so raw "glasgow"/"mrc" lookups keep plain word-by-word behavior).
+    With match_expressions=False the pass is skipped entirely and every
+    word is scored singly.
     """
     _ensure_nltk_data()
     raw = word_tokenize(text.lower())
@@ -427,15 +476,19 @@ def _get_tokens(text: str, include_stopwords: bool = False, source: str = "defau
     units = []
     i = 0
     while i < len(raw):
-        if i + 1 < len(raw):
-            compound = _BIGRAMS.get((raw[i], raw[i + 1]))
-            if (
-                compound is not None
-                and word_concreteness(compound, source, lemma_fallback=False)
-                is not None
-            ):
-                units.append(compound)
-                i += 2
+        if match_expressions:
+            matched = None
+            for parts, key in _EXPRESSIONS.get(raw[i], ()):
+                if (
+                    tuple(raw[i : i + len(parts)]) == parts
+                    and word_concreteness(key, source, lemma_fallback=False)
+                    is not None
+                ):
+                    matched = (key, len(parts))
+                    break
+            if matched is not None:
+                units.append(matched[0])
+                i += matched[1]
                 continue
         if raw[i].isalpha():
             units.append(raw[i])
@@ -443,6 +496,16 @@ def _get_tokens(text: str, include_stopwords: bool = False, source: str = "defau
 
     if not include_stopwords:
         stop_words = set(stopwords.words("english"))
-        units = [unit for unit in units if unit not in stop_words]
+        # One rule for both unit kinds: a unit is dropped when every word
+        # in it is a stopword. For single words that is the classic filter;
+        # for expressions it drops all-function-word matches ("of a",
+        # "that is") that word-by-word scoring would have removed entirely,
+        # while keeping expressions with any content word ("act on",
+        # "piece of cake").
+        units = [
+            unit
+            for unit in units
+            if not all(part in stop_words for part in unit.lower().split(" "))
+        ]
 
     return units

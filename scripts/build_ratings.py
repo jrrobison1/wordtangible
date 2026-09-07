@@ -6,7 +6,7 @@ gitignored — the MRC database's terms are "for research purposes", so the
 raw files are not committed) and writes a merged ratings CSV with one row
 per word and one column per source:
 
-    Word,Concreteness,Brysbaert,Glasgow,MRC
+    Word,Concreteness,Brysbaert,Muraki,Glasgow,MRC
 
 - Brysbaert: raw Conc.M from Brysbaert et al. (2014), 1-5 scale.
 - Glasgow:   raw CNC mean from the Glasgow Norms (Scott et al., 2019),
@@ -19,11 +19,19 @@ per word and one column per source:
              1988 machine-usable dictionary), 100-700 scale. First
              occurrence wins for words with several part-of-speech
              entries (their CNC values are identical in practice).
+- Muraki:    raw Mean_C from Muraki et al. (2023), concreteness ratings
+             for 62,889 multiword expressions (bigrams through long
+             idioms, plus ~1,100 hyphenated single words), natively 1-5
+             like Brysbaert — same lab lineage and method, but only ~10
+             raters per expression vs Brysbaert's ~30. Rows with no
+             rating (NA) are dropped.
 - Concreteness: the package's default rating — a quality-ordered
              fallback. The raw Brysbaert value when the word is in
              Brysbaert (the largest, most recent source, whose 1-5 scale
-             is the package's scale); otherwise Glasgow, otherwise MRC,
-             each linearly rescaled to 1-5 and rounded to two decimals.
+             is the package's scale); otherwise Muraki (same scale and
+             lineage, fewer raters); otherwise Glasgow, otherwise MRC,
+             the latter two linearly rescaled to 1-5 and rounded to two
+             decimals.
              Fallback is deliberate: the sources' normalized
              distributions have systematically different means (3.04 /
              3.38 / 3.25), so averaging them would inject a scale-mixing
@@ -68,7 +76,11 @@ SOURCES = {
         "https://raw.githubusercontent.com/samzhang111/"
         "mrc-psycholinguistics/master/mrc2.dct"
     ),
+    # Muraki et al. (2023) multiword-expression concreteness ratings,
+    # from the paper's OSF repository (osf.io/ksypa)
+    "muraki_mwe.csv": "https://osf.io/download/he4dv/",
 }
+
 
 def download_sources() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -127,6 +139,16 @@ def parse_glasgow() -> dict[str, float]:
     return bare
 
 
+def parse_muraki() -> dict[str, float]:
+    """Expression (original casing) -> Mean_C on a 1-5 scale, 2 decimals."""
+    ratings = {}
+    with open(RAW_DIR / "muraki_mwe.csv", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            if row["Mean_C"] != "NA":
+                ratings[row["Expression"]] = round(float(row["Mean_C"]), 2)
+    return ratings
+
+
 def parse_mrc() -> dict[str, int]:
     """Lowercase word -> CNC (100-700); 0 means unrated and is skipped.
 
@@ -157,10 +179,13 @@ def build_rows(
     brysbaert: dict[str, float],
     glasgow: dict[str, float],
     mrc: dict[str, int],
+    muraki: dict[str, float],
 ) -> list[dict[str, str]]:
-    # Brysbaert words keep their original casing (the historical file did);
-    # everything else is keyed lowercase. Join across sources case-insensitively.
-    display = {word.lower(): word for word in brysbaert}
+    # Brysbaert (then Muraki) entries keep their original casing; everything
+    # else is keyed lowercase. Join across sources case-insensitively.
+    display = {expr.lower(): expr for expr in muraki}
+    display.update({word.lower(): word for word in brysbaert})
+    muraki_by_key = {expr.lower(): value for expr, value in muraki.items()}
     all_words = sorted(
         set(display) | set(glasgow) | set(mrc),
         key=lambda w: (display.get(w, w).lower(), display.get(w, w)),
@@ -170,12 +195,15 @@ def build_rows(
     for key in all_words:
         word = display.get(key, key)
         brys_val = brysbaert.get(word)
+        muraki_val = muraki_by_key.get(key)
         glas_val = glasgow.get(key)
         mrc_val = mrc.get(key)
 
-        # Quality-ordered fallback: Brysbaert > Glasgow > MRC
+        # Quality-ordered fallback: Brysbaert > Muraki > Glasgow > MRC
         if brys_val is not None:
             default = brys_val
+        elif muraki_val is not None:
+            default = muraki_val
         elif glas_val is not None:
             default = round(normalize_glasgow(glas_val), 2)
         else:
@@ -186,6 +214,7 @@ def build_rows(
                 "Word": word,
                 "Concreteness": str(default),
                 "Brysbaert": "" if brys_val is None else str(brys_val),
+                "Muraki": "" if muraki_val is None else str(muraki_val),
                 "Glasgow": "" if glas_val is None else str(glas_val),
                 "MRC": "" if mrc_val is None else str(mrc_val),
             }
@@ -240,18 +269,21 @@ def main() -> None:
     brysbaert = parse_brysbaert()
     glasgow = parse_glasgow()
     mrc = parse_mrc()
+    muraki = parse_muraki()
     print(
         f"  brysbaert: {len(brysbaert)} words, "
-        f"glasgow: {len(glasgow)} words, mrc: {len(mrc)} words"
+        f"glasgow: {len(glasgow)} words, mrc: {len(mrc)} words, "
+        f"muraki: {len(muraki)} expressions"
     )
 
-    rows = build_rows(brysbaert, glasgow, mrc)
+    rows = build_rows(brysbaert, glasgow, mrc, muraki)
     if args.diff_against:
         diff_against(rows, args.diff_against)
 
     with open(OUT_CSV, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(
-            f, fieldnames=["Word", "Concreteness", "Brysbaert", "Glasgow", "MRC"]
+            f,
+            fieldnames=["Word", "Concreteness", "Brysbaert", "Muraki", "Glasgow", "MRC"],
         )
         writer.writeheader()
         writer.writerows(rows)

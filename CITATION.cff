@@ -2,15 +2,15 @@ cff-version: 1.2.0
 message: >-
   If you use WordTangible in your research, please cite it as below, and
   please also cite the underlying rating datasets (see the README
-  references): Brysbaert et al. (2014), Scott et al. (2019), and
-  Coltheart (1981) / Wilson (1988).
+  references): Brysbaert et al. (2014), Muraki et al. (2023), Scott et
+  al. (2019), and Coltheart (1981) / Wilson (1988).
 title: "WordTangible: word concreteness and imageability analysis"
 type: software
 authors:
   - family-names: Robison
     given-names: Jason
-version: 0.5.0
-date-released: "2026-09-06"
+version: 0.6.0
+date-released: "2026-09-07"
 license: MIT
 repository-code: "https://github.com/jrrobison1/wordtangible"
 url: "https://pypi.org/project/wordtangible/"
@@ -36,6 +36,24 @@ references:
     end: 911
     year: 2014
     doi: 10.3758/s13428-013-0403-5
+  - type: article
+    title: Concreteness ratings for 62,000 English multiword expressions
+    authors:
+      - family-names: Muraki
+        given-names: Emiko J.
+      - family-names: Abdalla
+        given-names: Summer
+      - family-names: Brysbaert
+        given-names: Marc
+      - family-names: Pexman
+        given-names: Penny M.
+    journal: Behavior Research Methods
+    volume: 55
+    issue: 5
+    start: 2522
+    end: 2531
+    year: 2023
+    doi: 10.3758/s13428-022-01912-6
   - type: article
     title: "The Glasgow Norms: Ratings of 5,500 words on nine scales"
     authors:

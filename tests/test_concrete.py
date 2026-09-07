@@ -48,7 +48,7 @@ def test_avg_text_concreteness(
     result = avg_text_concreteness(text, include_stopwords, only_rated_words)
 
     assert round(result, 2) == expected_result
-    mock_get_tokens.assert_called_once_with(text, include_stopwords, "default")
+    mock_get_tokens.assert_called_once_with(text, include_stopwords, "default", True)
     assert mock_word_concreteness.call_count == len(
         [word for word in text.split() if (word != "stopword" or include_stopwords)]
     )
@@ -117,7 +117,7 @@ def test_concrete_abstract_ratio(
     )
 
     assert result == expected_result
-    mock_get_tokens.assert_called_once_with(text, include_stopwords, "default")
+    mock_get_tokens.assert_called_once_with(text, include_stopwords, "default", True)
     assert mock_word_concreteness.call_count == len(
         [word for word in text.split() if (word != "stopword" or include_stopwords)]
     )
@@ -306,6 +306,68 @@ class TestBigramMatching:
     def test_raw_sources_unaffected(self):
         # Glasgow and MRC rate no compounds; the pair falls back to singles
         assert concreteness_coverage("baseball bat", source="mrc") == 0.5  # bat only
+
+
+class TestMultiwordExpressions:
+    """Muraki et al. (2023) expressions: n-gram matching and the muraki source."""
+
+    def test_muraki_expression_rated(self):
+        assert word_concreteness("piece of cake", "muraki") == pytest.approx(2.8)
+        # muraki-only expressions reach the default via the fallback
+        assert word_concreteness("piece of cake") == pytest.approx(2.8)
+        # and "open" (author-distributed, MRC-free)
+        assert word_concreteness("piece of cake", "open") == pytest.approx(2.8)
+
+    def test_brysbaert_wins_overlapping_compounds(self):
+        # both sources rate "baseball bat"; the 2014 value (~30 raters) wins
+        assert word_concreteness("baseball bat") == 5.0
+        assert word_concreteness("baseball bat", "muraki") == pytest.approx(4.73)
+
+    def test_trigram_matches_in_text(self):
+        # "kick the bucket" (idiom, abstract) must match as one unit over
+        # the concrete literal "bucket"
+        expected = word_concreteness("kick the bucket")
+        assert expected < 3.0
+        assert avg_text_concreteness("kick the bucket") == pytest.approx(expected)
+        assert concreteness_coverage("kick the bucket") == 1.0
+
+    def test_longest_match_wins(self):
+        # "ice cream" and "ice cream cone" are both rated; the trigram wins
+        expected = word_concreteness("ice cream cone")
+        assert avg_text_concreteness("ice cream cone") == pytest.approx(expected)
+
+    def test_match_expressions_off_scores_words_singly(self):
+        text = "kick the bucket"
+        singles = avg_text_concreteness(text, match_expressions=False)
+        assert singles == pytest.approx(
+            (word_concreteness("kick") + word_concreteness("bucket")) / 2
+        )
+        assert singles != avg_text_concreteness(text)
+
+    def test_hyphenated_single_entry_direct_lookup(self):
+        # ~1,100 Muraki entries are hyphenated single words; reachable by
+        # direct lookup even though text tokenization drops hyphenated tokens
+        assert word_concreteness("able-bodied", "muraki") is not None
+
+    def test_all_stopword_expression_respects_stopword_filter(self):
+        # "the same" is a rated Muraki expression, but both words are
+        # stopwords: with the default include_stopwords=False it must be
+        # dropped like its constituents would have been, not resurrected
+        assert word_concreteness("the same") is not None
+        assert avg_text_concreteness("the same") == 0.0
+        assert concreteness_coverage("the same") == 0.0
+        # with include_stopwords=True it scores as a unit
+        assert avg_text_concreteness("the same", include_stopwords=True) == (
+            pytest.approx(word_concreteness("the same"))
+        )
+        # expressions with any content word still survive the filter
+        assert avg_text_concreteness("They act on impulse.") > 0.0
+
+    def test_mean_includes_muraki(self):
+        # "baseball bat": mean of Brysbaert 5.0 and Muraki 4.73
+        assert word_concreteness("baseball bat", "mean") == pytest.approx(
+            (5.0 + 4.73) / 2, abs=0.01
+        )
 
 
 class TestLemmaFallback:
