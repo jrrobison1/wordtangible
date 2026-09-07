@@ -1,10 +1,13 @@
 import csv
 import nltk
+from functools import lru_cache
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 from importlib import resources
 
 _nltk_ready = False
+_wordnet_ready = False
 
 
 def _ensure_nltk_data() -> None:
@@ -29,6 +32,22 @@ def _ensure_nltk_data() -> None:
         except LookupError:
             nltk.download(resource, quiet=True)
     _nltk_ready = True
+
+
+def _ensure_wordnet() -> None:
+    """Make sure WordNet is available for the lemma fallback.
+
+    Separate from _ensure_nltk_data so that plain word lookups with the
+    fallback never pull in the tokenizer resources (and vice versa).
+    """
+    global _wordnet_ready
+    if _wordnet_ready:
+        return
+    try:
+        nltk.data.find("corpora/wordnet")
+    except LookupError:
+        nltk.download("wordnet", quiet=True)
+    _wordnet_ready = True
 
 
 def _load_concreteness_ratings() -> (
@@ -87,7 +106,31 @@ def _validate_source(source: str) -> None:
         raise ValueError(f"source must be one of {SOURCES}, got {source!r}")
 
 
-def word_concreteness(word: str, source: str = "default") -> float | None:
+_lemmatizer = WordNetLemmatizer()
+
+
+@lru_cache(maxsize=100_000)
+def _lemma_rating(word: str, source: str) -> float | None:
+    """Rating for the first WordNet lemma of `word` the source rates.
+
+    Tried as noun, verb, adjective, then adverb. Only consulted when the
+    surface form itself is unrated, which acts as a guardrail: plurals
+    whose meaning drifts from their lemma ("goods", "arms", "customs")
+    are rated directly in Brysbaert, so they never reach this fallback.
+    """
+    _ensure_wordnet()
+    for pos in ("n", "v", "a", "r"):
+        lemma = _lemmatizer.lemmatize(word, pos)
+        if lemma != word:
+            rating = word_concreteness(lemma, source, lemma_fallback=False)
+            if rating is not None:
+                return rating
+    return None
+
+
+def word_concreteness(
+    word: str, source: str = "default", lemma_fallback: bool = True
+) -> float | None:
     """
     Get the concreteness rating for a given word.
 
@@ -117,6 +160,16 @@ def word_concreteness(word: str, source: str = "default") -> float | None:
             - ``"mean"``: mean of all available ratings rescaled to 1-5.
               Note the scale-mixing caveat above — values are not
               comparable to any single set of published norms.
+        lemma_fallback (bool, optional): When the exact word is unrated,
+            fall back to its WordNet lemma (tried as noun, verb,
+            adjective, adverb) and return the first rated lemma's value —
+            so "whales" gets the rating of "whale", "replied" of
+            "reply". Only consulted on an exact miss: inflected forms
+            rated directly (including sense-drifting plurals like
+            "goods" or "arms") always use their own rating. Set False
+            for values strictly comparable to the published norms.
+            Defaults to True. The first fallback lookup downloads
+            WordNet via NLTK if it is missing.
 
     Returns:
         float | None: The word's rating in the chosen source (on that
@@ -132,27 +185,34 @@ def word_concreteness(word: str, source: str = "default") -> float | None:
     """
     _validate_source(source)
     if source in ("default", "brysbaert", "glasgow", "mrc"):
-        return _RATINGS[source].get(word, None)
-
-    brysbaert = _RATINGS["brysbaert"].get(word)
-    glasgow = _RATINGS["glasgow"].get(word)
-    if source == "open":
+        rating = _RATINGS[source].get(word, None)
+    elif source == "open":
+        brysbaert = _RATINGS["brysbaert"].get(word)
+        glasgow = _RATINGS["glasgow"].get(word)
         if brysbaert is not None:
-            return brysbaert
-        return None if glasgow is None else round(_normalize_glasgow(glasgow), 2)
+            rating = brysbaert
+        else:
+            rating = (
+                None if glasgow is None else round(_normalize_glasgow(glasgow), 2)
+            )
+    else:  # source == "mean"
+        brysbaert = _RATINGS["brysbaert"].get(word)
+        glasgow = _RATINGS["glasgow"].get(word)
+        mrc = _RATINGS["mrc"].get(word)
+        values = [
+            value
+            for value in (
+                brysbaert,
+                None if glasgow is None else _normalize_glasgow(glasgow),
+                None if mrc is None else _normalize_mrc(mrc),
+            )
+            if value is not None
+        ]
+        rating = round(sum(values) / len(values), 2) if values else None
 
-    # source == "mean"
-    mrc = _RATINGS["mrc"].get(word)
-    values = [
-        value
-        for value in (
-            brysbaert,
-            None if glasgow is None else _normalize_glasgow(glasgow),
-            None if mrc is None else _normalize_mrc(mrc),
-        )
-        if value is not None
-    ]
-    return round(sum(values) / len(values), 2) if values else None
+    if rating is None and lemma_fallback:
+        rating = _lemma_rating(word, source)
+    return rating
 
 
 def avg_text_concreteness(
@@ -160,6 +220,7 @@ def avg_text_concreteness(
     include_stopwords: bool = False,
     only_rated_words: bool = True,
     source: str = "default",
+    lemma_fallback: bool = True,
 ) -> float:
     """
     Calculate the average concreteness rating for a given text.
@@ -177,6 +238,9 @@ def avg_text_concreteness(
             Defaults to "default". Note that the result is on the chosen
             source's scale: 1-5 for "default"/"brysbaert"/"open"/"mean",
             1-7 for "glasgow", 100-700 for "mrc".
+        lemma_fallback (bool, optional): Score unrated words by their
+            WordNet lemma when one is rated ("whales" scores as "whale") —
+            see word_concreteness. Defaults to True.
 
     Returns:
         float: The average concreteness rating of the text. Returns 0.0 if no words
@@ -202,9 +266,9 @@ def avg_text_concreteness(
         return 0.0
 
     concreteness_ratings = [
-        concreteness
+        rating
         for token in tokens
-        if (concreteness := word_concreteness(token, source)) is not None
+        if (rating := word_concreteness(token, source, lemma_fallback)) is not None
     ]
     num_tokens = len(concreteness_ratings if only_rated_words else tokens)
     total_concreteness = sum(concreteness_ratings)
@@ -219,6 +283,7 @@ def concrete_abstract_ratio(
     very_abstract_threshold: float = 2.0,
     smoothing: float = 0.0,
     source: str = "default",
+    lemma_fallback: bool = True,
 ) -> float:
     """
     Calculate the ratio of very concrete words to very abstract words in a given text.
@@ -245,6 +310,9 @@ def concrete_abstract_ratio(
             Defaults to "default". The thresholds are compared on the chosen
             source's scale, and the defaults (4.0 / 2.0) assume the 1-5 scale;
             pass adjusted thresholds for "glasgow" (1-7) or "mrc" (100-700).
+        lemma_fallback (bool, optional): Score unrated words by their
+            WordNet lemma when one is rated ("whales" scores as "whale") —
+            see word_concreteness. Defaults to True.
 
     Returns:
         float: The ratio of very concrete words to very abstract words.
@@ -274,7 +342,7 @@ def concrete_abstract_ratio(
     abstract_words = 0
 
     for token in tokens:
-        concreteness = word_concreteness(token, source)
+        concreteness = word_concreteness(token, source, lemma_fallback)
         if concreteness is not None:
             if concreteness >= very_concrete_threshold:
                 concrete_words += 1
@@ -291,7 +359,10 @@ def concrete_abstract_ratio(
 
 
 def concreteness_coverage(
-    text: str, include_stopwords: bool = False, source: str = "default"
+    text: str,
+    include_stopwords: bool = False,
+    source: str = "default",
+    lemma_fallback: bool = True,
 ) -> float:
     """
     Calculate the fraction of tokens that have a known concreteness rating.
@@ -310,6 +381,11 @@ def concreteness_coverage(
             Defaults to False.
         source (str, optional): Which ratings to use — see word_concreteness.
             Defaults to "default".
+        lemma_fallback (bool, optional): Score unrated words by their
+            WordNet lemma when one is rated ("whales" scores as "whale") —
+            see word_concreteness. Defaults to True.
+            A lemma-rescued word counts as rated, so coverage reflects
+            the ratings the other functions actually use.
 
     Returns:
         float: rated_tokens / total_tokens, in [0.0, 1.0]. Returns 0.0 for an
@@ -324,7 +400,9 @@ def concreteness_coverage(
     if not tokens:
         return 0.0
     rated = sum(
-        1 for token in tokens if word_concreteness(token, source) is not None
+        1
+        for token in tokens
+        if word_concreteness(token, source, lemma_fallback) is not None
     )
     return rated / len(tokens)
 
@@ -351,7 +429,11 @@ def _get_tokens(text: str, include_stopwords: bool = False, source: str = "defau
     while i < len(raw):
         if i + 1 < len(raw):
             compound = _BIGRAMS.get((raw[i], raw[i + 1]))
-            if compound is not None and word_concreteness(compound, source) is not None:
+            if (
+                compound is not None
+                and word_concreteness(compound, source, lemma_fallback=False)
+                is not None
+            ):
                 units.append(compound)
                 i += 2
                 continue

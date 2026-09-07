@@ -34,7 +34,7 @@ def test_avg_text_concreteness(
         word for word in text.split() if (word != "stopword" or include_stopwords)
     ]
 
-    def mock_concreteness(word, source="default"):
+    def mock_concreteness(word, source="default", lemma_fallback=True):
         concreteness_dict = {
             "concrete": 5.0,
             "abstract": 2.0,
@@ -97,7 +97,7 @@ def test_concrete_abstract_ratio(
         word for word in text.split() if (word != "stopword" or include_stopwords)
     ]
 
-    def mock_concreteness(word, source="default"):
+    def mock_concreteness(word, source="default", lemma_fallback=True):
         concreteness_dict = {
             "very_concrete": 5.0,
             "somewhat_concrete": 4.0,
@@ -154,7 +154,7 @@ def test_concrete_abstract_ratio_smoothing(
 ):
     mock_get_tokens.return_value = text.split()
 
-    def mock_concreteness(word, source="default"):
+    def mock_concreteness(word, source="default", lemma_fallback=True):
         concreteness_dict = {
             "very_concrete": 5.0,
             "neutral": 3.0,
@@ -189,7 +189,7 @@ def test_concreteness_coverage(
 ):
     mock_get_tokens.return_value = tokens
 
-    def mock_concreteness(word, source="default"):
+    def mock_concreteness(word, source="default", lemma_fallback=True):
         return {"concrete": 4.5, "abstract": 1.5}.get(word, None)
 
     mock_word_concreteness.side_effect = mock_concreteness
@@ -306,3 +306,40 @@ class TestBigramMatching:
     def test_raw_sources_unaffected(self):
         # Glasgow and MRC rate no compounds; the pair falls back to singles
         assert concreteness_coverage("baseball bat", source="mrc") == 0.5  # bat only
+
+
+class TestLemmaFallback:
+    """Unrated inflected forms score as their WordNet lemma."""
+
+    def test_plural_falls_back_to_lemma(self):
+        assert word_concreteness("whales") == word_concreteness("whale")
+        assert word_concreteness("whales", lemma_fallback=False) is None
+
+    def test_verb_form_falls_back_to_lemma(self):
+        assert word_concreteness("replied") == word_concreteness("reply")
+
+    def test_exact_rating_always_wins(self):
+        # "glasses" (spectacles) is rated directly and differs from "glass";
+        # the fallback must not be consulted
+        direct = word_concreteness("glasses", lemma_fallback=False)
+        assert direct is not None
+        assert word_concreteness("glasses") == direct
+
+    def test_fallback_respects_source(self):
+        for source in ("brysbaert", "glasgow", "mrc", "open", "mean"):
+            assert word_concreteness("whales", source) == word_concreteness(
+                "whale", source
+            )
+
+    def test_unlemmatizable_word_still_none(self):
+        assert word_concreteness("zzzunrated") is None
+
+    def test_text_functions_use_fallback(self):
+        # "whales" and "began" are unrated surface forms
+        with_fallback = avg_text_concreteness("whales began")
+        assert with_fallback == pytest.approx(
+            (word_concreteness("whale") + word_concreteness("begin")) / 2
+        )
+        assert avg_text_concreteness("whales began", lemma_fallback=False) == 0.0
+        assert concreteness_coverage("whales began") == 1.0
+        assert concreteness_coverage("whales began", lemma_fallback=False) == 0.0

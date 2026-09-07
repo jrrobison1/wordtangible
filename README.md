@@ -29,6 +29,10 @@ three-way mean are all available via the `source` parameter (see below).
 - Rated two-word compounds match as units: "baseball bat" gets the
   compound's own rating (Brysbaert rated 2,896 such expressions) instead
   of blending "baseball" and "bat"
+- Unrated inflected forms score as their WordNet lemma ("whales" as
+  "whale", "replied" as "reply") — worth ~10 points of token coverage on
+  typical fiction; disable with `lemma_fallback=False` for values
+  strictly comparable to the published norms
 - Calculate average concreteness for a given text
 - Compute the ratio of concrete to abstract words in a text (with optional
   add-k smoothing to keep it finite and stable on short texts)
@@ -147,14 +151,14 @@ source; Brysbaert and Glasgow only if you use `source="open"`; the
 single dataset if you use a raw source). GitHub's "Cite this repository"
 button generates a citation from [CITATION.cff](CITATION.cff), or use:
 
-> Robison, J. (2026). *WordTangible* (Version 0.4.0) [Computer software].
+> Robison, J. (2026). *WordTangible* (Version 0.5.0) [Computer software].
 > https://github.com/jrrobison1/wordtangible
 
 ```bibtex
 @software{robison_wordtangible,
   author  = {Robison, Jason},
   title   = {WordTangible},
-  version = {0.4.0},
+  version = {0.5.0},
   year    = {2026},
   url     = {https://github.com/jrrobison1/wordtangible}
 }

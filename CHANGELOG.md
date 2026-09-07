@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0
+
+- **Lemma fallback, on by default.** A word with no rating of its own is
+  now scored by its WordNet lemma (tried as noun, verb, adjective, then
+  adverb): "whales" scores as "whale", "replied" as "reply", "began" as
+  "begin". Measured on full novels, token coverage rises from ~78-81% to
+  ~91% — over half of all previously unrated tokens — and what remains
+  unrated is almost entirely proper names. The fallback is consulted
+  only on an exact miss, which acts as a guardrail: sense-drifting
+  plurals ("goods", "arms", "customs", "glasses") are rated directly in
+  Brysbaert and always keep their own rating. Pass
+  `lemma_fallback=False` (available on every function) for values
+  strictly comparable to the published norms. WordNet is downloaded
+  lazily via NLTK on the first fallback lookup; lookups are cached.
+  Scores and coverage shift wherever a lemma now matches — that's the
+  feature.
+
 ## 0.4.0
 
 - **Rated two-word compounds now match in text analysis.** The Brysbaert
