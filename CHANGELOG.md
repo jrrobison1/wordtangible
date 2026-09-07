@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.0
+
+- **New: `source` parameter on every function.** Choose which ratings to
+  use: `"default"` (see below), a single dataset's raw un-normalized
+  values on its native scale (`"brysbaert"` 1-5, `"glasgow"` 1-7,
+  `"mrc"` 100-700), `"open"` (Brysbaert else Glasgow — excludes the
+  research-purposes-only MRC database, suitable for commercial use), or
+  `"mean"` (mean of the available sources rescaled to 1-5).
+- **The Glasgow Norms are now actually used.** Reverse-engineering the
+  original data file against its sources showed it was never the
+  documented three-way average: it was Brysbaert's raw value with an
+  MRC fallback, and the Glasgow data was never incorporated at all
+  (an apparent bug in the original, lost build script). The default is
+  now an intentional quality-ordered fallback — Brysbaert, else Glasgow,
+  else MRC, rescaled to 1-5 — chosen over averaging because the sources'
+  normalized distributions have systematically different means (3.04 /
+  3.38 / 3.25), so a linear-rescale average skews multi-source words
+  instead of reducing noise. Practical impact: 202 words gained ratings
+  (Glasgow-only vocabulary — British spellings and some inflected
+  forms — plus `ah`, which the old build dropped inexplicably), 26
+  words switched from MRC-derived to Glasgow-derived values, and
+  MRC-derived values are now rounded to two decimals instead of one.
+  Brysbaert-backed values — over 99% of lookups — are unchanged.
+- **New: `scripts/build_ratings.py`.** The ratings CSV is now
+  reproducible: the script downloads the three source datasets, merges
+  them, and writes the resource file, which also gained per-source raw
+  columns (`Brysbaert`, `Glasgow`, `MRC`) alongside the default
+  `Concreteness` column. Raw downloads are cached in `data/raw/` and not
+  committed (the MRC database is "for research purposes").
+- Validated the Glasgow CNC ratings before adopting them: they correlate
+  with Brysbaert at r = 0.93 over 4,455 shared words — as strongly as
+  Brysbaert and MRC agree with each other — and the norms were validated
+  by their authors against 18 other sets of psycholinguistic norms.
+
 ## 0.2.0
 
 - **New: `smoothing` parameter on `concrete_abstract_ratio`.** Add-k

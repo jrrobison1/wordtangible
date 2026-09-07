@@ -9,11 +9,23 @@ Data is pulled from:
 - The MRC Psycholinguistic Database (Coltheart, 1981; machine-usable
   dictionary: Wilson, 1988)[3][4]
 
-The concreteness ratings from these datasets were averaged and normalized to a 1-5 scale, where 5 represents the highest level of concreteness.
+The default rating is a quality-ordered fallback on a 1-5 scale (5 = most
+concrete): Brysbaert's raw value when a word is in Brysbaert (the largest
+and most recent source, natively 1-5), otherwise Glasgow, otherwise MRC,
+each linearly rescaled to 1-5. The sources are deliberately *not*
+averaged — their normalized distributions have systematically different
+means, so a linear-rescale average would skew multi-source words rather
+than reduce noise. This way every value is a real published rating from a
+single identifiable study (and ~99% of words return Brysbaert's exact
+published value). The raw per-source ratings, an MRC-free variant, and a
+three-way mean are all available via the `source` parameter (see below).
 
 ## Features
 
 - Get concreteness ratings for individual words
+- Choose the ratings source: the default fallback, any single dataset
+  un-normalized (`brysbaert`, `glasgow`, `mrc`), an MRC-free variant
+  (`open`) for commercial use, or a normalized three-way `mean`
 - Calculate average concreteness for a given text
 - Compute the ratio of concrete to abstract words in a text (with optional
   add-k smoothing to keep it finite and stable on short texts)
@@ -57,6 +69,35 @@ from wordtangible import concreteness_coverage
 print(concreteness_coverage(text))
 ```
 
+### Choosing a ratings source
+
+Every function accepts a `source` parameter:
+
+```python
+word_concreteness("apple")               # 5.0   — default fallback, 1-5 scale
+word_concreteness("apple", "brysbaert")  # 5.0   — raw Brysbaert, 1-5 scale
+word_concreteness("apple", "glasgow")    # 6.824 — raw Glasgow CNC, 1-7 scale
+word_concreteness("apple", "mrc")        # 620   — raw MRC CNC, 100-700 scale
+word_concreteness("apple", "open")       # 5.0   — like default, but never MRC
+word_concreteness("apple", "mean")       # 4.78  — mean of all three, rescaled to 1-5
+
+avg_text_concreteness(text, source="open")
+```
+
+- `default` — Brysbaert, else Glasgow, else MRC (rescaled to 1-5).
+- `brysbaert` / `glasgow` / `mrc` — one dataset's raw, un-normalized
+  values on its native scale; `None` for words it doesn't rate. Useful
+  for comparing directly against the published norms. If you pass these
+  to `concrete_abstract_ratio`, adjust its thresholds to the source's
+  scale.
+- `open` — Brysbaert, else Glasgow: excludes the MRC database, whose
+  terms are "for research purposes" (see licensing below), making this
+  the right choice for commercial products.
+- `mean` — the mean of whichever of the three rate the word, each
+  linearly rescaled to 1-5. Beware: linear rescaling doesn't fully align
+  the scales (the sources' normalized means differ systematically), so
+  these values aren't comparable to any single set of published norms.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -83,12 +124,41 @@ apply to that data. Each source has its own terms:
   provided here as is standard practice.
 - **MRC Psycholinguistic Database** (Coltheart, 1981; Wilson, 1988): the
   database's distribution terms state that it is available **for research
-  purposes**. Because words rated in multiple lists are averaged, MRC-derived
-  values are merged into the bundled ratings. If you intend to use
-  WordTangible in a commercial (non-research) product, you should verify the
-  MRC terms for your use case, or ask about an MRC-free build of the ratings.
+  purposes**. The default ratings fall back to MRC-derived values for the
+  few hundred words neither Brysbaert nor Glasgow rates. If you intend to
+  use WordTangible in a commercial (non-research) product, pass
+  `source="open"` — it draws only on Brysbaert and Glasgow — or verify
+  the MRC terms for your use case.
+
+The bundled CSV keeps each source's raw rating in its own column, and
+`scripts/build_ratings.py` regenerates it from the original datasets
+(downloaded on demand; the raw files are not stored in this repository).
 
 This section documents provenance in good faith and is not legal advice.
+
+## Citing WordTangible
+
+If you use WordTangible in research, please cite both the tool and the
+rating datasets your results rest on (all three under the default
+source; Brysbaert and Glasgow only if you use `source="open"`; the
+single dataset if you use a raw source). GitHub's "Cite this repository"
+button generates a citation from [CITATION.cff](CITATION.cff), or use:
+
+> Robison, J. (2026). *WordTangible* (Version 0.3.0) [Computer software].
+> https://github.com/jrrobison1/wordtangible
+
+```bibtex
+@software{robison_wordtangible,
+  author  = {Robison, Jason},
+  title   = {WordTangible},
+  version = {0.3.0},
+  year    = {2026},
+  url     = {https://github.com/jrrobison1/wordtangible}
+}
+```
+
+Dataset citations are given in full in the [References](#references)
+below.
 
 ## References
 [1] Brysbaert, M., Warriner, A. B., & Kuperman, V. (2014). Concreteness ratings for 40 thousand generally known English word lemmas. *Behavior Research Methods, 46*(3), 904-911. https://doi.org/10.3758/s13428-013-0403-5

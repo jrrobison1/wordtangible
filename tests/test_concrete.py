@@ -4,6 +4,7 @@ from wordtangible.concrete import (
     avg_text_concreteness,
     concrete_abstract_ratio,
     concreteness_coverage,
+    word_concreteness,
 )
 
 
@@ -33,7 +34,7 @@ def test_avg_text_concreteness(
         word for word in text.split() if (word != "stopword" or include_stopwords)
     ]
 
-    def mock_concreteness(word):
+    def mock_concreteness(word, source="default"):
         concreteness_dict = {
             "concrete": 5.0,
             "abstract": 2.0,
@@ -96,7 +97,7 @@ def test_concrete_abstract_ratio(
         word for word in text.split() if (word != "stopword" or include_stopwords)
     ]
 
-    def mock_concreteness(word):
+    def mock_concreteness(word, source="default"):
         concreteness_dict = {
             "very_concrete": 5.0,
             "somewhat_concrete": 4.0,
@@ -153,7 +154,7 @@ def test_concrete_abstract_ratio_smoothing(
 ):
     mock_get_tokens.return_value = text.split()
 
-    def mock_concreteness(word):
+    def mock_concreteness(word, source="default"):
         concreteness_dict = {
             "very_concrete": 5.0,
             "neutral": 3.0,
@@ -188,9 +189,70 @@ def test_concreteness_coverage(
 ):
     mock_get_tokens.return_value = tokens
 
-    def mock_concreteness(word):
+    def mock_concreteness(word, source="default"):
         return {"concrete": 4.5, "abstract": 1.5}.get(word, None)
 
     mock_word_concreteness.side_effect = mock_concreteness
 
     assert concreteness_coverage("some text") == expected_result
+
+
+class TestWordConcretenessSources:
+    """Integration tests against the bundled ratings data."""
+
+    def test_default_is_brysbaert_when_available(self):
+        # apple is in all three sources; the default returns Brysbaert's
+        # raw published value, not a blend
+        assert word_concreteness("apple") == 5.0
+        assert word_concreteness("apple") == word_concreteness("apple", "brysbaert")
+
+    def test_default_falls_back_to_glasgow_then_mrc(self):
+        # abattoir: Glasgow-only -> Glasgow CNC 5.455 rescaled from 1-7 to 1-5
+        assert word_concreteness("abattoir") == pytest.approx(3.97, abs=0.01)
+        assert word_concreteness("abattoir", "brysbaert") is None
+        # abbess: MRC-only -> CNC 401 rescaled from 100-700 to 1-5
+        assert word_concreteness("abbess") == pytest.approx(3.01, abs=0.01)
+
+    def test_raw_single_sources_keep_native_scales(self):
+        assert word_concreteness("apple", "brysbaert") == 5.0  # 1-5
+        assert word_concreteness("apple", "glasgow") == 6.824  # 1-7
+        assert word_concreteness("apple", "mrc") == 620  # 100-700
+
+    def test_unrated_word_is_none_for_every_source(self):
+        for source in ("default", "brysbaert", "glasgow", "mrc", "open", "mean"):
+            assert word_concreteness("zzzunrated", source) is None
+
+    def test_open_never_uses_mrc(self):
+        # abbess is rated only by MRC
+        assert word_concreteness("abbess", "open") is None
+        # brysbaert wins when present, else glasgow rescaled
+        assert word_concreteness("apple", "open") == 5.0
+        assert word_concreteness("abattoir", "open") == pytest.approx(3.97, abs=0.01)
+
+    def test_mean_averages_available_normalized_ratings(self):
+        # apple: mean of brysbaert 5.0, glasgow 6.824 -> 4.88, mrc 620 -> 4.47
+        assert word_concreteness("apple", "mean") == pytest.approx(4.78, abs=0.01)
+        # single-source words: mean equals that source normalized
+        assert word_concreteness("abbess", "mean") == pytest.approx(3.01, abs=0.01)
+
+    def test_invalid_source_raises(self):
+        with pytest.raises(ValueError):
+            word_concreteness("apple", "webster")
+        with pytest.raises(ValueError):
+            avg_text_concreteness("some text", source="webster")
+        with pytest.raises(ValueError):
+            concrete_abstract_ratio("some text", source="webster")
+        with pytest.raises(ValueError):
+            concreteness_coverage("some text", source="webster")
+
+    def test_text_functions_accept_source(self):
+        text = "The apple fell."
+        assert avg_text_concreteness(text, source="brysbaert") == pytest.approx(
+            avg_text_concreteness(text)
+        )
+        # on glasgow's 1-7 scale the same text scores higher than on 1-5
+        assert avg_text_concreteness(text, source="glasgow") > avg_text_concreteness(
+            text
+        )
+        assert concreteness_coverage("apple abbess", source="mrc") == 1.0
+        assert concreteness_coverage("apple abbess", source="glasgow") == 0.5

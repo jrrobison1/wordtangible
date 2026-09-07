@@ -9,7 +9,8 @@ type: software
 authors:
   - family-names: Robison
     given-names: Jason
-version: 0.2.0
+version: 0.3.0
+date-released: "2026-09-06"
 license: MIT
 repository-code: "https://github.com/jrrobison1/wordtangible"
 url: "https://pypi.org/project/wordtangible/"
