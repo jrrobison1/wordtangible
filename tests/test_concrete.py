@@ -48,7 +48,7 @@ def test_avg_text_concreteness(
     result = avg_text_concreteness(text, include_stopwords, only_rated_words)
 
     assert round(result, 2) == expected_result
-    mock_get_tokens.assert_called_once_with(text, include_stopwords)
+    mock_get_tokens.assert_called_once_with(text, include_stopwords, "default")
     assert mock_word_concreteness.call_count == len(
         [word for word in text.split() if (word != "stopword" or include_stopwords)]
     )
@@ -117,7 +117,7 @@ def test_concrete_abstract_ratio(
     )
 
     assert result == expected_result
-    mock_get_tokens.assert_called_once_with(text, include_stopwords)
+    mock_get_tokens.assert_called_once_with(text, include_stopwords, "default")
     assert mock_word_concreteness.call_count == len(
         [word for word in text.split() if (word != "stopword" or include_stopwords)]
     )
@@ -256,3 +256,53 @@ class TestWordConcretenessSources:
         )
         assert concreteness_coverage("apple abbess", source="mrc") == 1.0
         assert concreteness_coverage("apple abbess", source="glasgow") == 0.5
+
+
+class TestBigramMatching:
+    """Rated two-word compounds (all from Brysbaert) match as one unit."""
+
+    def test_compound_looked_up_directly(self):
+        assert word_concreteness("baseball bat") is not None
+
+    def test_compound_beats_single_words(self):
+        # the text's only unit is the compound, so the average is exactly
+        # the compound's rating, not a blend of "baseball" and "bat"
+        expected = word_concreteness("baseball bat")
+        assert avg_text_concreteness("The baseball bat broke.") == pytest.approx(
+            (expected + word_concreteness("broke")) / 2
+        )
+
+    def test_compound_counts_as_one_unit(self):
+        assert concreteness_coverage("baseball bat") == 1.0
+
+    def test_punctuation_blocks_match(self):
+        # "baseball, bat" must not join across the comma
+        assert avg_text_concreteness("baseball, bat") == pytest.approx(
+            (word_concreteness("baseball") + word_concreteness("bat")) / 2
+        )
+
+    def test_stopword_compound_survives_stopword_removal(self):
+        # "act on" contains the stopword "on" but matches as a unit before
+        # stopword filtering
+        expected = word_concreteness("act on")
+        assert avg_text_concreteness("They act on impulse.") == pytest.approx(
+            (expected + word_concreteness("impulse")) / 2
+        )
+
+    def test_cased_compound_matches_lowercased_text(self):
+        expected = word_concreteness("Dutch oven")
+        assert expected is not None
+        assert avg_text_concreteness("the dutch oven", include_stopwords=False) == (
+            pytest.approx(expected)
+        )
+
+    def test_greedy_left_to_right(self):
+        # after "chain saw" is consumed, "blade" is scored alone
+        expected = word_concreteness("chain saw")
+        assert avg_text_concreteness("chain saw blade") == pytest.approx(
+            (expected + word_concreteness("blade")) / 2
+        )
+
+    def test_raw_sources_unaffected(self):
+        # Glasgow and MRC rate no compounds; the pair falls back to singles
+        assert concreteness_coverage("baseball bat", source="mrc") == 0.5  # bat only

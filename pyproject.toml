@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "wordtangible"
-version = "0.3.0"
+version = "0.4.0"
 description = "Python library for word concreteness and imageability analysis."
 authors = ["Jason Robison <jrrobison@protonmail.com>"]
 readme = "README.md"

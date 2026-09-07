@@ -26,6 +26,9 @@ three-way mean are all available via the `source` parameter (see below).
 - Choose the ratings source: the default fallback, any single dataset
   un-normalized (`brysbaert`, `glasgow`, `mrc`), an MRC-free variant
   (`open`) for commercial use, or a normalized three-way `mean`
+- Rated two-word compounds match as units: "baseball bat" gets the
+  compound's own rating (Brysbaert rated 2,896 such expressions) instead
+  of blending "baseball" and "bat"
 - Calculate average concreteness for a given text
 - Compute the ratio of concrete to abstract words in a text (with optional
   add-k smoothing to keep it finite and stable on short texts)
@@ -144,14 +147,14 @@ source; Brysbaert and Glasgow only if you use `source="open"`; the
 single dataset if you use a raw source). GitHub's "Cite this repository"
 button generates a citation from [CITATION.cff](CITATION.cff), or use:
 
-> Robison, J. (2026). *WordTangible* (Version 0.3.0) [Computer software].
+> Robison, J. (2026). *WordTangible* (Version 0.4.0) [Computer software].
 > https://github.com/jrrobison1/wordtangible
 
 ```bibtex
 @software{robison_wordtangible,
   author  = {Robison, Jason},
   title   = {WordTangible},
-  version = {0.3.0},
+  version = {0.4.0},
   year    = {2026},
   url     = {https://github.com/jrrobison1/wordtangible}
 }

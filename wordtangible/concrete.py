@@ -31,13 +31,20 @@ def _ensure_nltk_data() -> None:
     _nltk_ready = True
 
 
-def _load_concreteness_ratings() -> dict[str, dict[str, float]]:
+def _load_concreteness_ratings() -> (
+    tuple[dict[str, dict[str, float]], dict[tuple[str, str], str]]
+):
     ratings: dict[str, dict[str, float]] = {
         "default": {},
         "brysbaert": {},
         "glasgow": {},
         "mrc": {},
     }
+    # (token, token) -> the rated entry's key, e.g. ("baseball", "bat") ->
+    # "baseball bat" and ("dutch", "oven") -> "Dutch oven". The Brysbaert
+    # norms deliberately rated 2,896 two-word compounds; tokenization maps
+    # adjacent token pairs back onto them (see _get_tokens).
+    bigrams: dict[tuple[str, str], str] = {}
 
     ref = resources.files("wordtangible.resources") / "concreteness_ratings.csv"
     with ref.open("r", encoding="utf-8") as csvfile:
@@ -52,11 +59,14 @@ def _load_concreteness_ratings() -> dict[str, dict[str, float]]:
                 ratings["glasgow"][word] = float(row["Glasgow"])
             if row["MRC"]:
                 ratings["mrc"][word] = float(row["MRC"])
+            parts = word.lower().split(" ")
+            if len(parts) == 2:
+                bigrams[(parts[0], parts[1])] = word
 
-    return ratings
+    return ratings, bigrams
 
 
-_RATINGS = _load_concreteness_ratings()
+_RATINGS, _BIGRAMS = _load_concreteness_ratings()
 CONCRETENESS_RATINGS = _RATINGS["default"]
 
 SOURCES = ("default", "brysbaert", "glasgow", "mrc", "open", "mean")
@@ -178,13 +188,15 @@ def avg_text_concreteness(
     Note:
         - On the default 1-5 scale, ratings range from 1 (highly abstract)
           to 5 (highly concrete).
+        - Adjacent words forming a rated two-word compound ("baseball bat")
+          are scored as one unit using the compound's own rating.
         - If only_rated_words is True, words without concreteness ratings are excluded
           from both the numerator and denominator of the average calculation.
         - If only_rated_words is False, all words are included in the denominator,
           but only rated words contribute to the numerator.
     """
     _validate_source(source)
-    tokens = _get_tokens(text, include_stopwords)
+    tokens = _get_tokens(text, include_stopwords, source)
 
     if len(tokens) == 0:
         return 0.0
@@ -256,7 +268,7 @@ def concrete_abstract_ratio(
     if smoothing < 0:
         raise ValueError("smoothing must be >= 0")
     _validate_source(source)
-    tokens = _get_tokens(text, include_stopwords)
+    tokens = _get_tokens(text, include_stopwords, source)
 
     concrete_words = 0
     abstract_words = 0
@@ -301,13 +313,14 @@ def concreteness_coverage(
 
     Returns:
         float: rated_tokens / total_tokens, in [0.0, 1.0]. Returns 0.0 for an
-        empty text (or one with no alphabetic tokens).
+        empty text (or one with no alphabetic tokens). A matched two-word
+        compound ("baseball bat") counts as a single token.
 
     Raises:
         ValueError: If source is not one of the recognized names.
     """
     _validate_source(source)
-    tokens = _get_tokens(text, include_stopwords)
+    tokens = _get_tokens(text, include_stopwords, source)
     if not tokens:
         return 0.0
     rated = sum(
@@ -316,12 +329,38 @@ def concreteness_coverage(
     return rated / len(tokens)
 
 
-def _get_tokens(text: str, include_stopwords: bool = False):
+def _get_tokens(text: str, include_stopwords: bool = False, source: str = "default"):
+    """Tokenize text into rateable units: single words and rated compounds.
+
+    Adjacent token pairs that form a rated two-word compound ("baseball
+    bat", "act on") are emitted as one unit, greedily left to right, and
+    their tokens are consumed so they aren't also counted singly. The
+    bigram pass runs on the raw token stream, before punctuation and
+    stopwords are dropped: punctuation between two words blocks a match
+    ("...the baseball, bat in hand..."), and compounds containing a
+    stopword ("act on") survive stopword removal. A compound only matches
+    if the chosen source rates it — otherwise the words fall back to
+    being scored singly (the compounds all come from Brysbaert, so raw
+    "glasgow"/"mrc" lookups keep plain word-by-word behavior).
+    """
     _ensure_nltk_data()
-    tokens = [token for token in word_tokenize(text.lower()) if token.isalpha()]
+    raw = word_tokenize(text.lower())
+
+    units = []
+    i = 0
+    while i < len(raw):
+        if i + 1 < len(raw):
+            compound = _BIGRAMS.get((raw[i], raw[i + 1]))
+            if compound is not None and word_concreteness(compound, source) is not None:
+                units.append(compound)
+                i += 2
+                continue
+        if raw[i].isalpha():
+            units.append(raw[i])
+        i += 1
 
     if not include_stopwords:
         stop_words = set(stopwords.words("english"))
-        tokens = [token for token in tokens if token not in stop_words]
+        units = [unit for unit in units if unit not in stop_words]
 
-    return tokens
+    return units

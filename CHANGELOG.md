@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0
+
+- **Rated two-word compounds now match in text analysis.** The Brysbaert
+  norms deliberately rated 2,896 two-word expressions ("baseball bat",
+  "big toe", "act on"), but tokenization only ever looked up single
+  words, so those entries could never match. Adjacent words forming a
+  rated compound are now scored as one unit with the compound's own
+  rating, greedily left to right. Punctuation between the words blocks a
+  match ("...the baseball, bat in hand..." stays two words), compounds
+  containing a stopword ("act on") survive stopword removal, and a
+  matched compound counts as a single token for coverage and averaging.
+  A compound only matches when the chosen `source` rates it, so raw
+  `"glasgow"`/`"mrc"` lookups keep plain word-by-word behavior. Scores
+  shift slightly wherever a compound now matches — that's the feature.
+  (The 18 hyphenated compounds, e.g. "first-aid kit", remain out of
+  reach: hyphenated tokens are dropped by the alphabetic-token filter.)
+
 ## 0.3.0
 
 - **New: `source` parameter on every function.** Choose which ratings to
