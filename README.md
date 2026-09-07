@@ -152,6 +152,10 @@ The bundled CSV keeps each source's raw rating in its own column, and
 `scripts/build_ratings.py` regenerates it from the original datasets
 (downloaded on demand; the raw files are not stored in this repository).
 
+The lemma fallback additionally uses **WordNet** (Miller, 1995), which is
+not bundled either: NLTK downloads it on first use, under the permissive
+[Princeton WordNet license](https://wordnet.princeton.edu/license-and-commercial-use).
+
 This section documents provenance in good faith and is not legal advice.
 
 ## Citing WordTangible
@@ -175,6 +179,9 @@ button generates a citation from [CITATION.cff](CITATION.cff), or use:
 }
 ```
 
+If your analysis uses the default lemma fallback (`lemma_fallback=True`),
+consider also citing WordNet[6], which provides the lemmatization.
+
 Dataset citations are given in full in the [References](#references)
 below.
 
@@ -188,3 +195,5 @@ below.
 [4] Coltheart, M. (1981). The MRC psycholinguistic database. *The Quarterly Journal of Experimental Psychology Section A, 33*(4), 497-505. https://doi.org/10.1080/14640748108400805
 
 [5] Wilson, M. (1988). MRC Psycholinguistic Database: Machine-usable dictionary, version 2.00. *Behavior Research Methods, Instruments, & Computers, 20*(1), 6-10. https://doi.org/10.3758/BF03202594
+
+[6] Miller, G. A. (1995). WordNet: A lexical database for English. *Communications of the ACM, 38*(11), 39-41. https://doi.org/10.1145/219717.219748

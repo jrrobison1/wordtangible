@@ -3,7 +3,8 @@ message: >-
   If you use WordTangible in your research, please cite it as below, and
   please also cite the underlying rating datasets (see the README
   references): Brysbaert et al. (2014), Muraki et al. (2023), Scott et
-  al. (2019), and Coltheart (1981) / Wilson (1988).
+  al. (2019), and Coltheart (1981) / Wilson (1988) — plus WordNet
+  (Miller, 1995) if you use the default lemma fallback.
 title: "WordTangible: word concreteness and imageability analysis"
 type: software
 authors:
@@ -74,6 +75,18 @@ references:
     end: 1270
     year: 2019
     doi: 10.3758/s13428-018-1099-3
+  - type: article
+    title: "WordNet: A lexical database for English"
+    authors:
+      - family-names: Miller
+        given-names: George A.
+    journal: Communications of the ACM
+    volume: 38
+    issue: 11
+    start: 39
+    end: 41
+    year: 1995
+    doi: 10.1145/219717.219748
   - type: article
     title: The MRC psycholinguistic database
     authors:
