@@ -1,7 +1,7 @@
 # WordTangible
 [![PyPI - Version](https://img.shields.io/pypi/v/wordtangible?link=https%3A%2F%2Fpypi.org%2Fproject%2Fwordtangible%2F)](https://pypi.org/project/wordtangible/) [![DOI](https://zenodo.org/badge/844322355.svg)](https://doi.org/10.5281/zenodo.22635419)
 
-WordTangible is a simple Python library for analyzing the concreteness and imageability of words and text. This can be useful for various natural language processing tasks, readability analysis, and linguistic research.
+WordTangible is a simple Python library for analyzing the concreteness of words and text. This can be useful for various natural language processing tasks, readability analysis, and linguistic research.
 
 Data is pulled from:
 - The Brysbaert dataset (Brysbaert et al., 2014)[1]
